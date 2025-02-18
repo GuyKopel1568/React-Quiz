@@ -6,12 +6,15 @@ import Loader from "./Loader";
 import Error from "./Error";
 import StartScreen from "./StartScreen";
 import Question from "./Question";
+import NextButton from "./NextButton";
+import Progress from "./Progress";
 
 const initialState = {
   questions: [],
   status: "Loading",
   index: 0,
-  answer: null
+  answer: null,
+  points: 0
 };
 
 function reducer(state, action) {
@@ -23,25 +26,44 @@ function reducer(state, action) {
     case "start":
       return { ...state, status: "active" };
     case "newAnswer":
-      return { ...state, answer: action.payload };
+      const question = state.questions.at(state.index);
+
+      return {
+        ...state,
+        answer: action.payload,
+        points:
+          action.payload === question.correctOption
+            ? state.points + question.points
+            : state.points
+      };
+    case "nextQuestion":
+      return {
+        ...state,
+        index: state.index + 1,
+        answer: null
+      };
     default:
       throw new Error("Active unknown");
   }
 }
 
 export default function App() {
-  const [{ questions, status, index, answer }, dispatch] = useReducer(
+  const [{ questions, status, index, answer, points }, dispatch] = useReducer(
     reducer,
     initialState
   );
 
   const numQuestions = questions.length;
+  const maxPossiblePoints = questions.reduce(
+    (prev, cur) => prev + cur.points,
+    0
+  );
 
-  useEffect(function() {
+  useEffect(function () {
     fetch("http://localhost:5000/questions")
-      .then(res => res.json())
-      .then(data => dispatch({ type: "dataRecived", payload: data }))
-      .catch(res => dispatch({ type: "dataFailed" }));
+      .then((res) => res.json())
+      .then((data) => dispatch({ type: "dataRecived", payload: data }))
+      .catch((res) => dispatch({ type: "dataFailed" }));
   }, []);
 
   return (
@@ -50,14 +72,26 @@ export default function App() {
       <Main>
         {status === "Loading" && <Loader />}
         {status === "Error" && <Error />}
-        {status === "Ready" &&
-          <StartScreen numQuestions={numQuestions} dispatch={dispatch} />}
-        {status === "active" &&
-          <Question
-            question={questions[index]}
-            dispatch={dispatch}
-            answer={answer}
-          />}
+        {status === "Ready" && (
+          <StartScreen numQuestions={numQuestions} dispatch={dispatch} />
+        )}
+        {status === "active" && (
+          <>
+            <Progress
+              index={index}
+              numQuestions={numQuestions}
+              points={points}
+              maxPossiblePoints={maxPossiblePoints}
+              answer={answer}
+            />
+            <Question
+              question={questions[index]}
+              dispatch={dispatch}
+              answer={answer}
+            />
+            <NextButton dispatch={dispatch} answer={answer} />
+          </>
+        )}
       </Main>
     </div>
   );
